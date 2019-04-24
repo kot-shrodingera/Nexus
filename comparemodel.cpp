@@ -236,25 +236,19 @@ CompareParameterChooser::CompareParameterChooser(CompareModelData *compareModel)
 
   auto layout = new QVBoxLayout(this);
 
-  auto scrollArea = new QScrollArea(this);
-  scrollArea->setWidgetResizable(true);
-  scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-  auto scrollWidget = new QWidget(scrollArea);
-  auto scrollLayout = new QVBoxLayout(scrollWidget);
-  scrollLayout->setAlignment(Qt::AlignTop);
-  scrollArea->setWidget(scrollWidget);
+  auto scrollArea = new ScrollArea(this);
 
   layout->addWidget(scrollArea);
 
   for (const auto& parameterList : compareModel->m_parameterList) {
-    addComboBoxes(scrollLayout, parameterList);
+    addComboBoxes(scrollArea->layout(), parameterList);
   }
 
   auto addButton = new QPushButton("Добавить", this);
   layout->addWidget(addButton);
 
   connect(addButton, &QPushButton::clicked,
-          this, [this, scrollLayout] {
+          this, [this, scrollLayout = scrollArea->layout()] {
     addComboBoxes(scrollLayout);
 
   });

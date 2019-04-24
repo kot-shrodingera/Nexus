@@ -5,6 +5,8 @@
 #include <QComboBox>
 #include <QVBoxLayout>
 #include <QDialog>
+#include <QScrollArea>
+#include <QScrollBar>
 
 class CompareModelData;
 
@@ -29,6 +31,35 @@ protected:
 
 private:
   CompareModelData* compareModelData;
+};
+
+class ScrollArea : public QScrollArea {
+  Q_OBJECT
+public:
+  ScrollArea(QWidget *parent = nullptr) : QScrollArea(parent)
+  {
+    setWidgetResizable(true);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    auto scrollWidget = new QWidget(this);
+    auto scrollLayout = new QVBoxLayout(scrollWidget);
+    scrollLayout->setAlignment(Qt::AlignTop);
+    setWidget(scrollWidget);
+  }
+
+  QSize sizeHint() const override
+  {
+    QSize sz = QScrollArea::viewportSizeHint();
+    sz += QSize(2 * frameWidth() +10, 2 * frameWidth() +10);
+    if (verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOn)
+      sz.setWidth(sz.width() + verticalScrollBar()->sizeHint().width());
+    if (horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOn)
+      sz.setHeight(sz.height() + horizontalScrollBar()->sizeHint().height());
+    return sz;
+  }
+
+  QVBoxLayout* layout() {
+    return qobject_cast<QVBoxLayout*>(QScrollArea::widget()->layout());
+  }
 };
 
 class CompareModelData : public QAbstractTableModel
