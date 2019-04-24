@@ -428,13 +428,13 @@ void MainWindow::connectSignals() {
   });
 
   connect(soeButton, &QPushButton::clicked, this, [this] {
-    auto path = QFileDialog::getSaveFileName(this,
-                                             "Save DBID",
-                                             "",
-                                             "*.imp");
-    ThreadRunner::ThreadRunner([this, path] {
-      treeModel->saveDbid(path);
-    });
+    auto path
+        = QFileDialog::getSaveFileName(this, "Save DBID", "", "*.imp");
+    if (!path.isEmpty()) {
+      ThreadRunner::ThreadRunner([this, path] {
+        treeModel->saveDbid(path);
+      });
+    }
   });
 
   connect(exportExcelButton, &QPushButton::clicked, this, [this]() {
