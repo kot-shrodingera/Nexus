@@ -146,7 +146,7 @@ void MainWindow::setupSideArea() {
   sideArea->setWidget(sideWidget);
   sideLayout = new QGridLayout(sideWidget);
 
-  pathGroupBox = new QGroupBox("Пути", this);
+  pathGroupBox = new QGroupBox("Пути к исходным данным", this);
   pathGroupBoxLayout = new QGridLayout(pathGroupBox);
 
   for (auto tuple :
@@ -181,15 +181,17 @@ void MainWindow::setupSideArea() {
   pathGroupBoxLayout->addWidget(backupPathButton,
                                 pathGroupBoxLayout->rowCount(), 0, 1, -1);
 
-  loadButton = new QPushButton("Загрузить", this);
+  loadButton = new QPushButton("Загрузить исходные данные", this);
   pathGroupBoxLayout->addWidget(loadButton,
                                 pathGroupBoxLayout->rowCount(), 0, 1, -1);
 
-  compareButton = new QPushButton("Compare", this);
+  compareButton = new QPushButton("Сравнение DBID|Excel|AMS", this);
   pathGroupBoxLayout->addWidget(compareButton,
                                 pathGroupBoxLayout->rowCount(), 0, 1, -1);
 
-  soeButton = new QPushButton("SOE", this);
+  soeButton = new QPushButton("Автонастройка модулей SOE", this);
+  soeButton->setToolTip("Простановка настроек SOE в модулях "
+                        "на основе данных в точках");
   pathGroupBoxLayout->addWidget(soeButton,
                                 pathGroupBoxLayout->rowCount(), 0, 1, -1);
 
