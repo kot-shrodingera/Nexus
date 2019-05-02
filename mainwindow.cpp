@@ -438,13 +438,13 @@ void MainWindow::connectSignals() {
   });
 
   connect(exportExcelButton, &QPushButton::clicked, this, [this]() {
-    auto excelPath = QFileDialog::getSaveFileName(this,
-                                                  "Экспорт в Excel",
-                                                  "",
-                                                  "*.xlsx");
-    ThreadRunner::ThreadRunner([this, excelPath] {
-      exportExcel(excelPath);
-    });
+    auto excelPath
+        = QFileDialog::getSaveFileName(this, "Экспорт в Excel", "",  "*.xlsx");
+    if (!excelPath.isEmpty()) {
+      ThreadRunner::ThreadRunner([this, excelPath] {
+        exportExcel(excelPath);
+      });
+    }
   });
 
   connect(excelPointsModel, &ExcelPointsModel::requestHeadersChooser,
