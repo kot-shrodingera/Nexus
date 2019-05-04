@@ -57,7 +57,9 @@ signals:
   void loadComplete(bool dbid_enabled,
                     bool src_enabled,
                     bool xml_enabled,
-                    bool ophxml_enabled);
+                    bool ophxml_enabled,
+                    bool excel_enabled,
+                    bool ams_enabled);
 
 protected:
   void paintEvent(QPaintEvent *event) override;

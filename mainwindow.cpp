@@ -85,7 +85,10 @@ void MainWindow::setupUi() {
   tabBar->addTab("Ошибки BACKGROUND");
   tabBar->addTab("БД Excel");
   tabBar->addTab("AMS");
-  tabBar->addTab("Compare");
+  tabBar->addTab("Сравнение");
+  for (int i = 1; i < tabBar->count(); ++i) {
+    tabBar->setTabEnabled(i, false);
+  }
 
   leftSideLayout->addWidget(tabBar, 0, 0);
 
@@ -262,7 +265,7 @@ void MainWindow::setupFilters() {
 }
 
 void MainWindow::connectSignals() {
-  connect(tabBar, &QTabBar::tabBarClicked,
+  connect(tabBar, &QTabBar::currentChanged,
           stackedWidget, &QStackedWidget::setCurrentIndex);
 
   connect(dbidPathButton, &QPushButton::clicked, [this]() {
@@ -381,7 +384,7 @@ void MainWindow::connectSignals() {
       auto ophxml_enabled
           = !ophxml_path.isEmpty() && ophxmlCheckBox->isChecked();
       auto excel_enabled = !excel_path.isEmpty() && excelCheckBox->isChecked();
-      auto amsEnabled = !amsPath.isEmpty() && amsCheckBox->isChecked();
+      auto ams_enabled = !amsPath.isEmpty() && amsCheckBox->isChecked();
       QVector<QHash<PointInfo::Parameter, QString>> container;
       if (dbid_enabled
           || src_enabled
@@ -418,10 +421,15 @@ void MainWindow::connectSignals() {
         qDebug() << "Before load Excel";
         excelPointsModel->loadExcel(excel_path);
       }
-      if (amsEnabled) {
+      if (ams_enabled) {
         amsModel->load(amsPathLineEdit->text());
       }
-      emit loadComplete(dbid_enabled, src_enabled, xml_enabled, ophxml_enabled);
+      emit loadComplete(dbid_enabled,
+                        src_enabled,
+                        xml_enabled,
+                        ophxml_enabled,
+                        excel_enabled,
+                        ams_enabled);
     });
   });
 
@@ -462,7 +470,9 @@ void MainWindow::connectSignals() {
           this, [this] (bool dbid_enabled,
                         bool src_enabled,
                         bool xml_enabled,
-                        bool ophxml_enabled) {
+                        bool ophxml_enabled,
+                        bool excel_enabled,
+                        bool ams_enabled) {
     for (int i = 0; i < sideLayout->count(); ++i) {
       auto widget = sideLayout->itemAt(i)->widget();
       if (widget != nullptr) {
@@ -480,6 +490,25 @@ void MainWindow::connectSignals() {
       filtersButtons[i].second
           ->setDisabled(!enabled);
       ++i;
+    }
+    tabBar->setTabEnabled(0, dbid_enabled
+                             || src_enabled
+                             || xml_enabled
+                             || ophxml_enabled);
+    tabBar->setTabEnabled(1, dbid_enabled);
+    tabBar->setTabEnabled(2, src_enabled);
+    tabBar->setTabEnabled(3, excel_enabled);
+    tabBar->setTabEnabled(4, ams_enabled);
+    tabBar->setTabEnabled(5, QVector{dbid_enabled,
+                                     excel_enabled,
+                                     ams_enabled}.count(true) > 1);
+    if (!tabBar->isTabEnabled(tabBar->currentIndex())) {
+      for (int i = 0; i < tabBar->count(); ++i) {
+        if (tabBar->isTabEnabled(i)) {
+          tabBar->setCurrentIndex(i);
+          return;
+        }
+      }
     }
     emit updateStatus("Загрузка завершена");
   });
