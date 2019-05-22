@@ -24,7 +24,8 @@
 
 QJsonObject global_settings;
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
+{
   QFile settingsFile("settings.json");
   if (settingsFile.open(QIODevice::ReadOnly)) {
     global_settings
@@ -42,6 +43,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   };
   setupUi();
   connectSignals();
+
+  exportExcelDialog = new ExportExcelDialog(this);
 }
 
 void MainWindow::setupModels() {
@@ -226,21 +229,16 @@ void MainWindow::setupFilters() {
   for (auto filter_info : PointsTableModel::filters) {
     auto mode = filter_info.mode;
     auto description = filter_info.description;
-    auto checkBox = new QCheckBox(this);
     auto radioButton = new QRadioButton(description, this);
     if (mode != PointsTableModel::FilterMode::ALL) {
-      checkBox->setDisabled(true);
       radioButton->setDisabled(true);
     }
-    filtersButtons.append({checkBox, radioButton});
+    filtersButtons.append(radioButton);
     if (mode == PointsTableModel::FilterMode::ALL) {
       radioButton->setChecked(true);
     }
-
-    filtersGroupBoxLayout->addWidget(checkBox,
-                                     filtersGroupBoxLayout->rowCount(), 0);
     filtersGroupBoxLayout->addWidget(radioButton,
-                                     filtersGroupBoxLayout->rowCount() - 1, 1);
+                                     filtersGroupBoxLayout->rowCount(), 1);
     if (filter_option_dialogs_.contains(mode)) {
       auto optionButton = new QToolButton(this);
       optionButton->setText("...");
@@ -448,13 +446,7 @@ void MainWindow::connectSignals() {
   });
 
   connect(exportExcelButton, &QPushButton::clicked, this, [this]() {
-    auto excelPath
-        = QFileDialog::getSaveFileName(this, "Экспорт в Excel", "",  "*.xlsx");
-    if (!excelPath.isEmpty()) {
-      ThreadRunner::ThreadRunner([this, excelPath] {
-        exportExcel(excelPath);
-      });
-    }
+    exportExcelDialog->exec();
   });
 
   connect(excelPointsModel, &ExcelPointsModel::requestHeadersChooser,
@@ -485,10 +477,7 @@ void MainWindow::connectSignals() {
                                          src_enabled,
                                          xml_enabled,
                                          ophxml_enabled);
-      filtersButtons[i].first
-          ->setDisabled(!enabled);
-      filtersButtons[i].second
-          ->setDisabled(!enabled);
+      filtersButtons[i]->setDisabled(!enabled);
       ++i;
     }
     tabBar->setTabEnabled(0, dbid_enabled
@@ -546,10 +535,8 @@ void MainWindow::connectSignals() {
   });
 
   int i = 0;
-  for (auto pair : filtersButtons) {
-    auto radioButton = pair.second;
-
-    connect(radioButton, &QRadioButton::toggled,
+  for (auto filterButton : filtersButtons) {
+    connect(filterButton, &QRadioButton::toggled,
             this, [this, i](bool toggled) {
       if (toggled) {
         proxyModel->setFilterMode(i);
@@ -584,82 +571,6 @@ void MainWindow::setDefaults()
   if (global_settings["AMSDefaultPath"].isString()) {
     amsPathLineEdit->setText(global_settings["AMSDefaultPath"].toString());
   }
-}
-
-void MainWindow::exportExcel(const QString& file_name) {
-  emit updateProgress(0);
-  emit updateStatus("Генерация Excel-файла");
-
-  QXlsx::Document xlsx;
-  QXlsx::Format header_format;
-  header_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
-  header_format.setPatternBackgroundColor(QColor(65, 157, 241, 255));
-  QXlsx::Format red_background_format;
-  red_background_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
-  red_background_format.setPatternBackgroundColor(QColor(255, 0, 0, 255));
-  QXlsx::Format gray_background_format;
-  gray_background_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
-  gray_background_format.setPatternBackgroundColor(QColor(160, 160, 164, 255));
-  auto model = new PointsSortFilterProxyModel(proxyModel);
-  int i = 0;
-  QList<int> modes;
-  int current_radio;
-  for (const auto& filter_button_pair : filtersButtons) {
-    auto checkBox = filter_button_pair.first;
-    auto radioButton = filter_button_pair.second;
-    if (checkBox->isChecked()) {
-      modes.append(i);
-    }
-    if (radioButton->isChecked()) {
-      current_radio = i;
-    }
-    ++i;
-  }
-  if (modes.isEmpty()) {
-    modes.append(current_radio);
-  }
-  i = 1;
-  for (int mode : modes) {
-    emit updateStatus("Генерация Excel-файла. Этап "
-                      + QString::number(i++) + "/"
-                      + QString::number(modes.size()));
-    const QString& filter_name = filtersButtons[mode].second->text();
-    xlsx.addSheet(filter_name);
-    model->setFilterMode(mode);
-
-    for (int col = 0; col < model->columnCount(); col++) {
-      QString data =
-              model->headerData(col, Qt::Horizontal, Qt::DisplayRole).toString();
-      xlsx.write(1, col + 1, data, header_format);
-      if (data == "APPEAR_IN_FILES") {
-        xlsx.setColumnWidth(col + 1, 80);
-      } else if (data == "TYPE") {
-        xlsx.setColumnWidth(col + 1, 20);
-      } else {
-        xlsx.setColumnWidth(col + 1, 30);
-      }
-    }
-
-    int row_count = model->rowCount();
-    int column_count = model->columnCount();
-    for (int row = 0; row < row_count; row++) {
-      emit updateProgress(100 * row / (row_count - 1));
-      for (int col = 0; col < column_count; col++) {
-        QXlsx::CellReference cell(row + 2, col + 1);
-        xlsx.write(cell, model->data(model->index(row, col)));
-        if (model->data(model->index(row, col),
-                        Qt::BackgroundColorRole) == QColor(Qt::red)) {
-          xlsx.write(cell, xlsx.cellAt(cell)->value(), red_background_format);
-        } else if (model->data(model->index(row, col),
-                               Qt::BackgroundColorRole) == QColor(Qt::gray)) {
-          xlsx.write(cell, xlsx.cellAt(cell)->value(), gray_background_format);
-        }
-      }
-    }
-  }
-  emit updateStatus("Сохранение Excel-файла. Подождите...");
-  xlsx.saveAs(file_name);
-  emit updateStatus("Сохранение Excel-файла. Подождите... Завершено");
 }
 
 void MainWindow::paintEvent(QPaintEvent* event) {
@@ -781,4 +692,148 @@ AlarmsDialog::AlarmsDialog(PointsTableModel* tableModel,
     tableModel->updateFiltering(
     {PointsTableModel::FilterMode::LIMITS_PRIORITY_ERRORS});
   });
+}
+
+ExportExcelDialog::ExportExcelDialog(MainWindow *parent)
+  : QDialog(parent)
+{
+  connect(this, &ExportExcelDialog::updateStatus,
+          parent, &MainWindow::updateStatus);
+  connect(this, &ExportExcelDialog::updateProgress,
+          parent, &MainWindow::updateProgress);
+
+  setWindowTitle("Экспорт в Excel");
+  setMinimumSize(100, 100);
+  auto layout = new QVBoxLayout(this);
+  auto pathWidget = new QWidget(this);
+  auto pathLayout = new QHBoxLayout(pathWidget);
+  pathLayout->setContentsMargins(0, 0, 0, 0);
+  layout->addWidget(pathWidget);
+  auto pathLabel = new QLabel("Путь", this);
+  pathLayout->addWidget(pathLabel);
+  auto pathLineEdit = new QLineEdit(this);
+  pathLineEdit->setReadOnly(true);
+  pathLayout->addWidget(pathLineEdit);
+  auto pathButton = new QPushButton("Обзор...", this);
+  pathLayout->addWidget(pathButton);
+  auto radioCurrent = new QRadioButton("Текущий фильтр", this);
+  radioCurrent->setChecked(true);
+  layout->addWidget(radioCurrent);
+  auto radioMulti = new QRadioButton("Выбранные фильтры:", this);
+  layout->addWidget(radioMulti);
+  auto groupBox = new QGroupBox(this);
+  layout->addWidget(groupBox);
+  auto groupBoxLayout = new QVBoxLayout(groupBox);
+
+  for (auto filterButton : parent->filtersButtons) {
+    auto checkBox = new QCheckBox(filterButton->text(), this);
+    groupBoxLayout->addWidget(checkBox);
+    filterButtons.append(checkBox);
+    connect(checkBox, &QCheckBox::clicked, this, [radioMulti]() {
+      if (!radioMulti->isChecked()) {
+        radioMulti->setChecked(true);
+      }
+    });
+  }
+
+  auto applyButton = new QPushButton("Экспорт", this);
+  layout->addWidget(applyButton);
+
+  connect(pathButton, &QPushButton::clicked, this, [this, pathLineEdit] {
+    pathLineEdit->setText(
+          QFileDialog::getSaveFileName(this, "Экспорт в Excel", "",  "*.xlsx"));
+  });
+
+  connect(radioCurrent, &QRadioButton::toggled, this, [this](bool checked) {
+    if (checked) {
+      filterMode = FilterMode::CURRENT;
+    }
+  });
+
+  connect(radioMulti, &QRadioButton::toggled, this, [this](bool checked) {
+    if (checked) {
+      filterMode = FilterMode::MULTI;
+    }
+  });
+
+  connect(applyButton, &QPushButton::clicked, this, [this, pathLineEdit] {
+    ThreadRunner::ThreadRunner([this, pathLineEdit]() {
+      exportExcel(pathLineEdit->text());
+    });
+  });
+}
+
+void ExportExcelDialog::exportExcel(const QString& file_name) {
+  Q_ASSERT_X(!file_name.isEmpty(), Q_FUNC_INFO, "file_name is empty");
+  auto mainWindow = qobject_cast<MainWindow*>(parent());
+  emit updateProgress(0);
+  emit updateStatus("Генерация Excel-файла");
+
+  QXlsx::Document xlsx;
+  QXlsx::Format header_format;
+  header_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
+  header_format.setPatternBackgroundColor(QColor(65, 157, 241, 255));
+  QXlsx::Format red_background_format;
+  red_background_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
+  red_background_format.setPatternBackgroundColor(QColor(255, 0, 0, 255));
+  QXlsx::Format gray_background_format;
+  gray_background_format.setFillPattern(QXlsx::Format::FillPattern::PatternSolid);
+  gray_background_format.setPatternBackgroundColor(QColor(160, 160, 164, 255));
+  auto model = new PointsSortFilterProxyModel(mainWindow->proxyModel);
+  QList<int> modes;
+  if (filterMode == FilterMode::CURRENT) {
+    for (const auto& radioButton : mainWindow->filtersButtons) {
+      if (radioButton->isChecked()) {
+        modes.append(mainWindow->filtersButtons.indexOf(radioButton));
+      }
+    }
+  } else {
+    for (int i = 0; i < filterButtons.size(); ++i) {
+      if (filterButtons[i]->isChecked()) {
+        modes.append(i);
+      }
+    }
+  }
+  int i = 1;
+  for (int mode : modes) {
+    emit updateStatus("Генерация Excel-файла. Этап "
+                      + QString::number(i++) + "/"
+                      + QString::number(modes.size()));
+    const QString& filter_name = mainWindow->filtersButtons[mode]->text();
+    xlsx.addSheet(filter_name);
+    model->setFilterMode(mode);
+
+    for (int col = 0; col < model->columnCount(); col++) {
+      QString data =
+              model->headerData(col, Qt::Horizontal, Qt::DisplayRole).toString();
+      xlsx.write(1, col + 1, data, header_format);
+      if (data == "APPEAR_IN_FILES") {
+        xlsx.setColumnWidth(col + 1, 80);
+      } else if (data == "TYPE") {
+        xlsx.setColumnWidth(col + 1, 20);
+      } else {
+        xlsx.setColumnWidth(col + 1, 30);
+      }
+    }
+
+    int row_count = model->rowCount();
+    int column_count = model->columnCount();
+    for (int row = 0; row < row_count; row++) {
+      emit updateProgress(100 * row / (row_count - 1));
+      for (int col = 0; col < column_count; col++) {
+        QXlsx::CellReference cell(row + 2, col + 1);
+        xlsx.write(cell, model->data(model->index(row, col)));
+        if (model->data(model->index(row, col),
+                        Qt::BackgroundColorRole) == QColor(Qt::red)) {
+          xlsx.write(cell, xlsx.cellAt(cell)->value(), red_background_format);
+        } else if (model->data(model->index(row, col),
+                               Qt::BackgroundColorRole) == QColor(Qt::gray)) {
+          xlsx.write(cell, xlsx.cellAt(cell)->value(), gray_background_format);
+        }
+      }
+    }
+  }
+  emit updateStatus("Сохранение Excel-файла. Подождите...");
+  xlsx.saveAs(file_name);
+  emit updateStatus("Сохранение Excel-файла. Подождите... Завершено");
 }

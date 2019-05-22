@@ -33,6 +33,7 @@
 #include "amsmodel.h"
 
 class Loader;
+class ExportExcelDialog;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -48,8 +49,6 @@ public:
   void connectSignals();
 
   void setDefaults();
-
-  void exportExcel(const QString& file_name);
 
 signals:
   void updateStatus(const QString& status, int timeout = 0);
@@ -131,13 +130,17 @@ private:
 
   QGroupBox* filtersGroupBox;
   QGridLayout* filtersGroupBoxLayout;
-  QList<QPair<QCheckBox*, QRadioButton*>> filtersButtons;
+  QList<QRadioButton*> filtersButtons;
   QLineEdit* kksFilterLineEdit;
 
   QMap<PointsTableModel::FilterMode, QDialog*> filter_option_dialogs_;
   QMap<PointsTableModel::FilterMode, QDialog*> filter_details_dialogs_;
 
   QPushButton* exportExcelButton;
+
+  friend class ExportExcelDialog;
+
+  ExportExcelDialog *exportExcelDialog;
 
   bool init = true;
 };
@@ -190,4 +193,18 @@ private:
     QComboBox* comboBox;
   };
   QList<structure> structure_list;
+};
+
+class ExportExcelDialog : public QDialog {
+  Q_OBJECT
+public:
+  ExportExcelDialog(MainWindow* parent);
+  QList<QCheckBox*> filterButtons;
+  enum class FilterMode {CURRENT, MULTI} filterMode;
+
+  void exportExcel(const QString& file_name);
+
+signals:
+  void updateStatus(const QString& status, int timeout = 0);
+  void updateProgress(int percent);
 };
